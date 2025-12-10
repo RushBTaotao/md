@@ -1,10 +1,10 @@
-tile,IPTQ Schedule,,,
-x,CYCLE,,,
-y,MODE,,,
-mode,input begin,input end,output begin ,output end
-M8,0,a8,a2,a4
-F8,8,a8,a2,a4
-TQITQ_M8,10,a4,a20,a1
-TQITQ_F8,18,a4,a20,a1
-INTER_PK8,43,43,43,a3
-SEL_PK8,46,46,46,a3
+tile,IPTQ Schedule,,,,
+x,CYCLE,,,,
+y,MODE,,,,
+mode,pipe begin,input begin,input end,output begin,output end
+M8,0,2,a8,a2,a4
+F8,8,10,a8,a2,a4
+TQITQ_M8,,12,a4,a20,a1
+TQITQ_F8,,20,a4,a20,a1
+INTER_PK8,,45,a1,a1,a1
+SEL_PK8,,48,a1,a1,a5
