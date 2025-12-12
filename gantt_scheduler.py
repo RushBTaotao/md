@@ -23,7 +23,7 @@ def read_tasks():
             # Read tasks from remaining lines
             reader = csv.DictReader(lines[3:])
             for row in reader:
-                mode = row['mode'].strip()
+                mode = row['mode'].replace(' ', '')
                 pipe_begin_str = row['pipe begin'].strip()
                 input_begin_str = row['input begin'].strip()
                 input_end_str = row['input end'].strip()
@@ -34,6 +34,7 @@ def read_tasks():
                 def parse_time(base, time_str):
                     if not time_str:
                         return None
+                    time_str = time_str.strip().rstrip(',')
                     if time_str.startswith('a'):
                         return base + int(time_str[1:])
                     else:
@@ -68,6 +69,25 @@ def plot_gantt(tasks, config=None):
         print("No tasks to plot.")
         return
 
+    # Check for overlaps between different modes' input or output segments
+    def check_overlap(start1, end1, start2, end2):
+        return max(start1, start2) < min(end1, end2)
+
+    for i in range(len(tasks)):
+        for j in range(i+1, len(tasks)):
+            task1 = tasks[i]
+            task2 = tasks[j]
+            if task1['mode'] != task2['mode'] and task1['mode'].startswith('PMF_') and task2['mode'].startswith('PMF_'):
+                # Check input overlap
+                if (task1['input_begin'] is not None and task1['input_end'] is not None and
+                    task2['input_begin'] is not None and task2['input_end'] is not None):
+                    if check_overlap(task1['input_begin'], task1['input_end'], task2['input_begin'], task2['input_end']):
+                        print(f"Warning: Input segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['input_begin'], task2['input_begin'])} to {min(task1['input_end'], task2['input_end'])}")
+                # Check output overlap
+                if (task1['output_begin'] is not None and task1['output_end'] is not None and
+                    task2['output_begin'] is not None and task2['output_end'] is not None):
+                    if check_overlap(task1['output_begin'], task1['output_end'], task2['output_begin'], task2['output_end']):
+                        print(f"Warning: Output segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['output_begin'], task2['output_begin'])} to {min(task1['output_end'], task2['output_end'])}")
     # Filter PMF tasks
     pmf_tasks = [task for task in tasks if task['mode'].startswith('PMF_')]
 
@@ -83,7 +103,10 @@ def plot_gantt(tasks, config=None):
         return
 
     if not plt.fignum_exists(1):
-        plt.figure(1, figsize=(12, 8))  # Larger figure size
+        if len(tasks) > 40:
+            plt.figure(1, figsize=(38, 10))  # Larger size for >40 tasks
+        else:
+            plt.figure(1, figsize=(19, 10))  # Smaller size for <=40 tasks
     else:
         plt.figure(1)
     plt.clf()  # Clear the figure
@@ -99,9 +122,43 @@ def plot_gantt(tasks, config=None):
     pmf_input_y = len(tasks) + 0.3
     pmf_output_y = len(tasks) + 1.3
 
-    # Colors for PMF segments using 4 saturation levels, cycling
-    green_colors = ['#90EE90', '#32CD32', '#228B22', '#006400']  # lightgreen, limegreen, forestgreen, darkgreen
-    orange_colors = ['#FFA500', '#FF8C00', '#FF6347', '#DC143C']  # orange, darkorange, tomato, crimson
+    # Colors for PMF segments using deeper colors
+    green_colors = ['#228B22', '#006400', '#228B22', '#006400']  # forestgreen, darkgreen, repeated for consistency
+    orange_colors = ['#DC143C', '#B22222', '#DC143C', '#B22222']  # crimson, firebrick, repeated for consistency
+
+    # Colors for PMF input summary segments based on mode size and type
+    def get_pmf_input_color(mode):
+        if 'M8' in mode:
+            return '#90EE90'  # lightgreen for M8
+        elif 'F8' in mode:
+            return '#32CD32'  # limegreen for F8
+        elif 'M16' in mode:
+            return '#FFA500'  # orange for M16
+        elif 'F16' in mode:
+            return '#FF8C00'  # darkorange for F16
+        elif 'M32' in mode:
+            return '#FFD700'  # gold for M32
+        elif 'F32' in mode:
+            return '#FF6347'  # tomato for F32
+        else:
+            return '#228B22'  # default forestgreen
+
+    # Colors for PMF output summary segments based on mode size and type
+    def get_pmf_output_color(mode):
+        if 'M8' in mode:
+            return '#FF6347'  # tomato for M8
+        elif 'F8' in mode:
+            return '#DC143C'  # crimson for F8
+        elif 'M16' in mode:
+            return '#FF8C00'  # darkorange for M16
+        elif 'F16' in mode:
+            return '#FFA500'  # orange for F16
+        elif 'M32' in mode:
+            return '#FFD700'  # gold for M32
+        elif 'F32' in mode:
+            return '#FF4500'  # orangered for F32
+        else:
+            return '#B22222'  # firebrick default
 
     # Draw PMF_INPUT summary
     for i, task in enumerate(pmf_tasks):
@@ -111,10 +168,10 @@ def plot_gantt(tasks, config=None):
         if input_begin is not None and input_end is not None:
             input_duration = input_end - input_begin
             if input_duration > 0:
-                scaled_input = scale_duration(input_duration)
-                color = green_colors[i % 4]
-                plt.barh(pmf_input_y, scaled_input, left=input_begin, height=0.6, color=color)
-                plt.text(input_begin + scaled_input / 2, pmf_input_y, suffix, ha='center', va='center', fontsize=8, color='white', weight='bold')
+                # Use original duration for summary bars, not scaled
+                color = get_pmf_input_color(task['mode'])
+                plt.barh(pmf_input_y, input_duration, left=input_begin, height=0.6, color=color)
+                plt.text(input_begin + input_duration / 2, pmf_input_y, suffix, ha='center', va='center', fontsize=7, color='white', weight='bold')
 
     # Draw PMF_OUTPUT summary
     for i, task in enumerate(pmf_tasks):
@@ -125,9 +182,9 @@ def plot_gantt(tasks, config=None):
             output_duration = output_end - output_begin
             if output_duration > 0:
                 scaled_output = scale_duration(output_duration)
-                color = orange_colors[i % 4]
+                color = get_pmf_output_color(task['mode'])
                 plt.barh(pmf_output_y, scaled_output, left=output_begin, height=0.6, color=color)
-                plt.text(output_begin + scaled_output / 2, pmf_output_y, suffix, ha='center', va='center', fontsize=8, color='white', weight='bold')
+                plt.text(output_begin + scaled_output / 2, pmf_output_y, suffix, ha='center', va='center', fontsize=7, color='white', weight='bold')
 
     for i, task in enumerate(reversed(tasks)):
         bar_y = i + 0.3
@@ -137,13 +194,14 @@ def plot_gantt(tasks, config=None):
             scaled_pipe = scale_duration(pipe_duration)
             if scaled_pipe > 0:
                 plt.barh(bar_y, scaled_pipe, left=task['pipe_begin'], height=0.6, color='gray')
-                plt.text(task['pipe_begin'] + scaled_pipe / 2, bar_y, f'{pipe_duration}', ha='center', va='center', fontsize=8, color='white', weight='bold')
-        # Input segment (green)
+                plt.text(task['pipe_begin'] + scaled_pipe / 2, bar_y, f'{pipe_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
+        # Input segment with color based on mode
         if task['input_begin'] is not None and task['input_end'] is not None:
             input_duration = task['input_end'] - task['input_begin']
             scaled_input = scale_duration(input_duration)
             if scaled_input > 0:
-                plt.barh(bar_y, scaled_input, left=task['input_begin'], height=0.6, color='green')
+                color = 'green'
+                plt.barh(bar_y, scaled_input, left=task['input_begin'], height=0.6, color=color)
                 # Adjust text position if overlapping with output
                 text_x = task['input_begin'] + scaled_input / 2
                 if task['output_begin'] is not None and task['output_end'] is not None and task['input_end'] > task['output_begin']:
@@ -152,14 +210,14 @@ def plot_gantt(tasks, config=None):
                     input_center = task['input_begin'] + scaled_input / 2
                     if input_center >= overlap_start:
                         text_x = task['input_begin'] + (overlap_start - task['input_begin']) / 2
-                plt.text(text_x, bar_y, f'{input_duration}', ha='center', va='center', fontsize=8, color='white', weight='bold')
+                plt.text(text_x, bar_y, f'{input_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
         # Transition (gray)
         if task['input_end'] is not None and task['output_begin'] is not None:
             gray_duration = task['output_begin'] - task['input_end']
             scaled_gray = scale_duration(gray_duration)
             if scaled_gray > 0:
                 plt.barh(bar_y, scaled_gray, left=task['input_end'], height=0.6, color='gray')
-                plt.text(task['input_end'] + scaled_gray / 2, bar_y, f'{gray_duration}', ha='center', va='center', fontsize=8, color='white', weight='bold')
+                plt.text(task['input_end'] + scaled_gray / 2, bar_y, f'{gray_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
         # Output segment (orange)
         if task['output_begin'] is not None and task['output_end'] is not None:
             orange_duration = task['output_end'] - task['output_begin']
@@ -174,14 +232,14 @@ def plot_gantt(tasks, config=None):
                     output_center = task['output_begin'] + scaled_orange / 2
                     if output_center <= overlap_end:
                         text_x = overlap_end + (task['output_end'] - overlap_end) / 2
-                plt.text(text_x, bar_y, f'{orange_duration}', ha='center', va='center', fontsize=8, color='white', weight='bold')
+                plt.text(text_x, bar_y, f'{orange_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
 
     # Add y labels next to the bars
     # For PMF summaries
     pmf_input_left = min(task['input_begin'] for task in pmf_tasks if task['input_begin'] is not None) if pmf_tasks else 0
     pmf_output_left = min(task['output_begin'] for task in pmf_tasks if task['output_begin'] is not None) if pmf_tasks else 0
-    plt.text(pmf_input_left - 5, pmf_input_y, 'PMF_INPUT', ha='right', va='center', fontsize=10)
-    plt.text(pmf_output_left - 5, pmf_output_y, 'PMF_OUTPUT', ha='right', va='center', fontsize=10)
+    plt.text(pmf_input_left - 2, pmf_input_y, 'PMF_INPUT', ha='right', va='center', fontsize=7)
+    plt.text(pmf_output_left - 2, pmf_output_y, 'PMF_OUTPUT', ha='right', va='center', fontsize=7)
 
     # For individual tasks
     for i, task in enumerate(reversed(tasks)):
@@ -189,10 +247,11 @@ def plot_gantt(tasks, config=None):
         left_times = [t for t in [task['pipe_begin'], task['input_begin'], task['input_end'], task['output_begin'], task['output_end']] if t is not None]
         if left_times:
             left_most = min(left_times)
-            plt.text(left_most - 5, bar_y, task['mode'], ha='right', va='center', fontsize=10)
+            plt.text(left_most - 1, bar_y, task['mode'], ha='right', va='center', fontsize=7)
 
     # Remove y ticks
     plt.yticks([])
+    plt.ylim(-0.5, len(tasks) + 2.5)
 
     # Set labels and title from config
     plt.xlabel(config.get('x', 'Clock Cycles') if config else 'Clock Cycles')
@@ -219,19 +278,19 @@ def plot_gantt(tasks, config=None):
     gray_patch = plt.Rectangle((0,0),1,1,fc='gray')
     green_patch = plt.Rectangle((0,0),1,1,fc='green')
     orange_patch = plt.Rectangle((0,0),1,1,fc='orange')
-    plt.legend([green_patch, gray_patch, orange_patch], ['Input', 'Transition', 'Output'], loc='upper right', bbox_to_anchor=(1.05, 1.1))
+    plt.legend([green_patch, gray_patch, orange_patch], ['Input', 'Transition', 'Output'], loc='upper right', bbox_to_anchor=(1.05, 1.05))
 
     # Add legend explaining scaling
-    plt.text(0.02, 1.02, 'Non-uniform scaling applied', transform=plt.gca().transAxes, verticalalignment='bottom', fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    plt.text(0.02, 1.02, 'Non-uniform scaling applied', transform=plt.gca().transAxes, verticalalignment='bottom', fontsize=9, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
-    plt.subplots_adjust(bottom=0.15, left=0.2)  # Leave space for button and y labels
+    plt.subplots_adjust(bottom=0.15, left=0.05, right=0.95)  # Adjusted to reduce left margin and add right margin control
 
     # Add refresh button
     ax_button = plt.axes([0.81, 0.02, 0.1, 0.05])  # [left, bottom, width, height]
     button = widgets.Button(ax_button, 'Refresh')
     button.on_clicked(lambda event: refresh_chart())
 
-    plt.savefig('gantt_chart.png', dpi=150, bbox_inches='tight')
+    plt.savefig('gantt_chart.png', dpi=300, bbox_inches='tight')
     plt.draw()  # Ensure the button is drawn
     plt.pause(0.01)  # Small pause to allow drawing
     plt.show()
