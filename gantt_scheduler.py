@@ -290,7 +290,9 @@ def plot_gantt(tasks, config=None):
     button = widgets.Button(ax_button, 'Refresh')
     button.on_clicked(lambda event: refresh_chart())
 
-    plt.savefig('gantt_chart.png', dpi=300, bbox_inches='tight')
+    import os
+    output_file = config.get('tile', 'Module Scheduling Gantt Chart').replace(' ', '_') + '.png'
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.draw()  # Ensure the button is drawn
     plt.pause(0.01)  # Small pause to allow drawing
     plt.show()
@@ -306,6 +308,5 @@ def refresh_chart():
 tasks, config = read_tasks()
 if tasks:
     plot_gantt(tasks, config)
-    print("Gantt chart saved as gantt_chart.png")
 else:
     print("No tasks found in CSV.")
