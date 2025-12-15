@@ -73,6 +73,16 @@ def plot_gantt(tasks, config=None):
     def check_overlap(start1, end1, start2, end2):
         return max(start1, start2) < min(end1, end2)
 
+    def get_size(mode):
+        if 'M8' in mode or 'F8' in mode:
+            return '8'
+        elif 'M16' in mode or 'F16' in mode:
+            return '16'
+        elif 'M32' in mode or 'F32' in mode:
+            return '32'
+        else:
+            return 'unknown'
+
     for i in range(len(tasks)):
         for j in range(i+1, len(tasks)):
             task1 = tasks[i]
@@ -83,11 +93,14 @@ def plot_gantt(tasks, config=None):
                     task2['input_begin'] is not None and task2['input_end'] is not None):
                     if check_overlap(task1['input_begin'], task1['input_end'], task2['input_begin'], task2['input_end']):
                         print(f"Warning: Input segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['input_begin'], task2['input_begin'])} to {min(task1['input_end'], task2['input_end'])}")
-                # Check output overlap
+                # Check output overlap (skip if different sizes)
                 if (task1['output_begin'] is not None and task1['output_end'] is not None and
                     task2['output_begin'] is not None and task2['output_end'] is not None):
-                    if check_overlap(task1['output_begin'], task1['output_end'], task2['output_begin'], task2['output_end']):
-                        print(f"Warning: Output segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['output_begin'], task2['output_begin'])} to {min(task1['output_end'], task2['output_end'])}")
+                    size1 = get_size(task1['mode'])
+                    size2 = get_size(task2['mode'])
+                    if size1 == size2:  # Only report overlap if same size
+                        if check_overlap(task1['output_begin'], task1['output_end'], task2['output_begin'], task2['output_end']):
+                            print(f"Warning: Output segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['output_begin'], task2['output_begin'])} to {min(task1['output_end'], task2['output_end'])}")
     # Filter PMF tasks
     pmf_tasks = [task for task in tasks if task['mode'].startswith('PMF_')]
 
@@ -194,7 +207,7 @@ def plot_gantt(tasks, config=None):
             scaled_pipe = scale_duration(pipe_duration)
             if scaled_pipe > 0:
                 plt.barh(bar_y, scaled_pipe, left=task['pipe_begin'], height=0.6, color='gray')
-                plt.text(task['pipe_begin'] + scaled_pipe / 2, bar_y, f'{pipe_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
+                # Removed text display for pipe segment
         # Input segment with color based on mode
         if task['input_begin'] is not None and task['input_end'] is not None:
             input_duration = task['input_end'] - task['input_begin']
@@ -269,6 +282,8 @@ def plot_gantt(tasks, config=None):
         if times:
             tick_positions.add(min(times))
     tick_positions = sorted(list(tick_positions))
+    # Add max_time to tick positions for rightmost marker
+    tick_positions.append(max_time)
     plt.xticks(tick_positions, [str(t) for t in tick_positions], rotation=45, ha='right')
 
     # Show grid
