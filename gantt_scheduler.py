@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.widgets as widgets
 import numpy as np
 import csv
+import argparse
 
 csv_file = 'tasks.csv'
 exit_flag = False
@@ -64,7 +65,7 @@ def read_tasks():
         return [], {}
     return tasks, config
 
-def plot_gantt(tasks, config=None):
+def plot_gantt(tasks, config=None, args=None):
     if not tasks:
         print("No tasks to plot.")
         return
@@ -296,22 +297,31 @@ def plot_gantt(tasks, config=None):
     button.on_clicked(lambda event: refresh_chart())
 
     import os
-    output_file = config.get('tile', 'Module Scheduling Gantt Chart').replace(' ', '_') + '.png'
+    output_file = args.output if args and args.output else config.get('tile', 'Module Scheduling Gantt Chart').replace(' ', '_') + '.png'
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    plt.draw()  # Ensure the button is drawn
-    plt.pause(0.01)  # Small pause to allow drawing
-    plt.show()
+    if not (args and args.save_only):
+        plt.draw()  # Ensure the button is drawn
+        plt.pause(0.01)  # Small pause to allow drawing
+        plt.show()
 
 def refresh_chart():
-    global tasks, config
+    global tasks, config, args
     tasks, config = read_tasks()
     if tasks:
-        plot_gantt(tasks, config)
+        plot_gantt(tasks, config, args)
         print("Chart refreshed.")
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--csv-file', default='tasks.csv', help='Input CSV file')
+parser.add_argument('--output', help='Output PNG file name')
+parser.add_argument('--save-only', action='store_true', help='Save PNG without displaying')
+
+args = parser.parse_args()
+csv_file = args.csv_file
 
 # Read and plot initial data
 tasks, config = read_tasks()
 if tasks:
-    plot_gantt(tasks, config)
+    plot_gantt(tasks, config, args)
 else:
     print("No tasks found in CSV.")
