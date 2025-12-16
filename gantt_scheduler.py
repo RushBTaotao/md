@@ -124,12 +124,7 @@ def plot_gantt(tasks, config=None):
         plt.figure(1)
     plt.clf()  # Clear the figure
 
-    # Draw each task with non-uniform scaling for bar widths only (positions use original)
-    threshold = 50
-    scale_long = 0.1
-
-    def scale_duration(duration):
-        return duration if duration <= threshold else threshold + (duration - threshold) * scale_long
+    # Draw each task with original durations (no scaling)
 
     # Y positions for PMF summaries
     pmf_input_y = len(tasks) + 0.3
@@ -194,55 +189,51 @@ def plot_gantt(tasks, config=None):
         if output_begin is not None and output_end is not None:
             output_duration = output_end - output_begin
             if output_duration > 0:
-                scaled_output = scale_duration(output_duration)
+                # Use original duration for summary bars, not scaled
                 color = get_pmf_output_color(task['mode'])
-                plt.barh(pmf_output_y, scaled_output, left=output_begin, height=0.6, color=color)
-                plt.text(output_begin + scaled_output / 2, pmf_output_y, suffix, ha='center', va='center', fontsize=7, color='white', weight='bold')
+                plt.barh(pmf_output_y, output_duration, left=output_begin, height=0.6, color=color)
+                plt.text(output_begin + output_duration / 2, pmf_output_y, suffix, ha='center', va='center', fontsize=7, color='white', weight='bold')
 
     for i, task in enumerate(reversed(tasks)):
         bar_y = i + 0.3
         # Pipe segment (gray)
         if task['pipe_begin'] is not None and task['pipe_end'] is not None:
             pipe_duration = task['pipe_end'] - task['pipe_begin']
-            scaled_pipe = scale_duration(pipe_duration)
-            if scaled_pipe > 0:
-                plt.barh(bar_y, scaled_pipe, left=task['pipe_begin'], height=0.6, color='gray')
+            if pipe_duration > 0:
+                plt.barh(bar_y, pipe_duration, left=task['pipe_begin'], height=0.6, color='gray')
                 # Removed text display for pipe segment
         # Input segment with color based on mode
         if task['input_begin'] is not None and task['input_end'] is not None:
             input_duration = task['input_end'] - task['input_begin']
-            scaled_input = scale_duration(input_duration)
-            if scaled_input > 0:
+            if input_duration > 0:
                 color = 'green'
-                plt.barh(bar_y, scaled_input, left=task['input_begin'], height=0.6, color=color)
+                plt.barh(bar_y, input_duration, left=task['input_begin'], height=0.6, color=color)
                 # Adjust text position if overlapping with output
-                text_x = task['input_begin'] + scaled_input / 2
+                text_x = task['input_begin'] + input_duration / 2
                 if task['output_begin'] is not None and task['output_end'] is not None and task['input_end'] > task['output_begin']:
                     # Overlapping, place text at the left part of input segment
                     overlap_start = task['output_begin']
-                    input_center = task['input_begin'] + scaled_input / 2
+                    input_center = task['input_begin'] + input_duration / 2
                     if input_center >= overlap_start:
                         text_x = task['input_begin'] + (overlap_start - task['input_begin']) / 2
                 plt.text(text_x, bar_y, f'{input_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
         # Transition (gray)
         if task['input_end'] is not None and task['output_begin'] is not None:
             gray_duration = task['output_begin'] - task['input_end']
-            scaled_gray = scale_duration(gray_duration)
-            if scaled_gray > 0:
-                plt.barh(bar_y, scaled_gray, left=task['input_end'], height=0.6, color='gray')
-                plt.text(task['input_end'] + scaled_gray / 2, bar_y, f'{gray_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
+            if gray_duration > 0:
+                plt.barh(bar_y, gray_duration, left=task['input_end'], height=0.6, color='gray')
+                plt.text(task['input_end'] + gray_duration / 2, bar_y, f'{gray_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
         # Output segment (orange)
         if task['output_begin'] is not None and task['output_end'] is not None:
             orange_duration = task['output_end'] - task['output_begin']
-            scaled_orange = scale_duration(orange_duration)
-            if scaled_orange > 0:
-                plt.barh(bar_y, scaled_orange, left=task['output_begin'], height=0.6, color='orange')
+            if orange_duration > 0:
+                plt.barh(bar_y, orange_duration, left=task['output_begin'], height=0.6, color='orange')
                 # Adjust text position if overlapping with input
-                text_x = task['output_begin'] + scaled_orange / 2
+                text_x = task['output_begin'] + orange_duration / 2
                 if task['input_begin'] is not None and task['input_end'] is not None and task['output_begin'] < task['input_end']:
                     # Overlapping, place text at the right part of output segment
                     overlap_end = task['input_end']
-                    output_center = task['output_begin'] + scaled_orange / 2
+                    output_center = task['output_begin'] + orange_duration / 2
                     if output_center <= overlap_end:
                         text_x = overlap_end + (task['output_end'] - overlap_end) / 2
                 plt.text(text_x, bar_y, f'{orange_duration}', ha='center', va='center', fontsize=7, color='white', weight='bold')
@@ -295,8 +286,7 @@ def plot_gantt(tasks, config=None):
     orange_patch = plt.Rectangle((0,0),1,1,fc='orange')
     plt.legend([green_patch, gray_patch, orange_patch], ['Input', 'Transition', 'Output'], loc='upper right', bbox_to_anchor=(1.05, 1.05))
 
-    # Add legend explaining scaling
-    plt.text(0.02, 1.02, 'Non-uniform scaling applied', transform=plt.gca().transAxes, verticalalignment='bottom', fontsize=9, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    # Scaling removed, no legend needed
 
     plt.subplots_adjust(bottom=0.15, left=0.05, right=0.95)  # Adjusted to reduce left margin and add right margin control
 
