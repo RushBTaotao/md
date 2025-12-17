@@ -13,6 +13,7 @@ import sys
 import os
 import matplotlib.pyplot as plt
 from collections import defaultdict
+import re
 
 def read_tasks_from_csv(csv_file_path):
     """
@@ -206,14 +207,9 @@ def clean_pmf_tasks(tasks):
     return cleaned
 
 def get_size(mode):
-    if 'M4' in mode or 'F4' in mode:
-        return '4'
-    elif 'M8' in mode or 'F8' in mode:
-        return '8'
-    elif 'M16' in mode or 'F16' in mode:
-        return '16'
-    elif 'M32' in mode or 'F32' in mode:
-        return '32'
+    match = re.search(r'[MF](\d+)', mode)
+    if match:
+        return match.group(1)
     else:
         return 'other'
 
