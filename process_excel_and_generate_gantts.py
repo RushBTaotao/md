@@ -56,9 +56,15 @@ def read_tasks_from_csv(csv_file_path):
                         return None
                     time_str = time_str.strip().rstrip(',')
                     if time_str.startswith('a'):
-                        return base + int(time_str[1:])
+                        try:
+                            return base + int(time_str[1:])
+                        except ValueError:
+                            return None
                     else:
-                        return int(time_str)
+                        try:
+                            return int(time_str)
+                        except ValueError:
+                            return None
 
                 pipe_begin = parse_time(0, pipe_begin_str) if pipe_begin_str else None
                 input_begin = parse_time(0, input_begin_str) if input_begin_str else None
@@ -179,20 +185,7 @@ def clean_pmf_tasks(tasks):
         if remove:
             continue
 
-        # 2. Adjust _c for specific conditions
-        adjust = False
-        if uv == 'Y' and size in ['16', '32', '64'] and '_c' in task.get('original_mode', mode):
-            adjust = True
-        if uv == 'UV' and size in ['8', '16', '32'] and '_c' in task.get('original_mode', mode):
-            adjust = True
-        if adjust:
-            old_ob = task['output_begin']
-            old_oe = task['output_end']
-            if old_ob is not None and old_oe is not None:
-                new_ob = old_oe + 2
-                new_oe = old_oe - old_ob + new_ob
-                task['output_begin'] = new_ob
-                task['output_end'] = new_oe
+
 
         # Only keep output_begin, output_end, mode, sheet, round, c, uv
         cleaned.append({
@@ -261,14 +254,30 @@ def plot_summary(tasks, pmf_sheets):
         if grouped_large:
             plot_single_summary(grouped_large, f'PMF_Summary_16_32_round{r}.png', f'PMF Output Summary 16/32 Round {r}', xlim=(0,800))
 
-def collect_summary_data(tasks, sizes, r, xlim):
+def collect_summary_data(tasks, sizes, r, xlim=None):
     filtered = [task for task in tasks if get_size(task['mode']) in sizes and task['round'] == r]
-    if xlim:
-        filtered = [task for task in filtered if task['output_begin'] is not None and task['output_end'] is not None and task['output_begin'] >= xlim[0] and task['output_end'] <= xlim[1]]
     return filtered
 
 def generate_summary_plot(tasks, sizes, r, xlim):
     filtered = collect_summary_data(tasks, sizes, r, xlim)
+    # For size 8, filter out tasks with output_end > 200, except for round 1
+    if '8' in sizes and r != '1':
+        filtered = [task for task in filtered if task['output_end'] is None or task['output_end'] <= 200]
+    if filtered:
+        min_ob = min(task['output_begin'] for task in filtered if task['output_begin'] is not None)
+        max_oe = max(task['output_end'] for task in filtered if task['output_end'] is not None)
+        # Special handling for round 1
+        if r == '1':
+            if '4' in sizes:
+                # Full range for size 4 round 1
+                xlim = (min_ob, max_oe)
+            elif '8' in sizes:
+                # Max 400 for size 8 round 1
+                xlim = (min_ob if min_ob < 0 else 0, 400)
+        else:
+            # Default adjustment
+            if min_ob < xlim[0]:
+                xlim = (min_ob, xlim[1])
     grouped = defaultdict(list)
     for task in filtered:
         size = get_size(task['mode'])
@@ -277,6 +286,16 @@ def generate_summary_plot(tasks, sizes, r, xlim):
     if grouped:
         size_str = '_'.join(sizes)
         plot_single_summary(grouped, f'PMF_Summary_{size_str}_round{r}.png', f'PMF Output Summary {"/".join(sizes)} Round {r}', xlim)
+
+def generate_combined_summary_plot(tasks, size, xlim):
+    filtered = [task for task in tasks if get_size(task['mode']) == size]
+    if filtered:
+        grouped = defaultdict(list)
+        for task in filtered:
+            uv = task['uv']
+            grouped[(size, uv)].append(task)
+        if grouped:
+            plot_single_summary(grouped, f'PMF_Summary_{size}.png', f'PMF Output Summary {size}', xlim)
 
 def plot_single_summary(grouped, filename, title, xlim=None):
     plt.figure(figsize=(19, 10))
@@ -302,10 +321,21 @@ def plot_single_summary(grouped, filename, title, xlim=None):
                     plt.barh(y_pos, duration, left=ob, height=0.4, color=color)
                     # Text with Y/UV/c0/c1/mode
                     mode_parts = task['mode'].split('_')
-                    if len(mode_parts) > 6:  # has _a/_b/_c
+                    # sp mode format: PMF_sp_M4_0_a_Y_c0_0
+                    if 'sp' in mode_parts:
+                        # PMF_sp_M4_0_a -> index 1 is sp, index 2 is size, then suffix
+                        # rejoin parts until uv marker
+                        suffix_parts = []
+                        for p in mode_parts[1:]:
+                            if p in ['Y', 'UV']:
+                                break
+                            suffix_parts.append(p)
+                        mode_short = '_'.join(suffix_parts)
+                    elif len(mode_parts) > 6:  # normal mode has _a/_b/_c
                         mode_short = '_'.join(mode_parts[1:4])
                     else:
                         mode_short = '_'.join(mode_parts[1:3])
+                    
                     suffix = f"{task['uv']} {task['c']} {mode_short}"
                     plt.text(ob + duration / 2, y_pos, suffix, ha='center', va='center', fontsize=7, color='black', weight='bold', rotation=45)
                 all_times.extend([ob, oe])
@@ -348,21 +378,31 @@ def plot_single_summary(grouped, filename, title, xlim=None):
     plt.ylabel('Size / Type / C')
     plt.title(title)
 
-    # Set x range
-    if xlim:
-        plt.xlim(xlim)
-    else:
-        if all_times:
-            min_t = min(all_times)
-            max_t = max(all_times)
-            plt.xlim(min_t, max_t)
-
-    # Set x ticks at output_begin positions
-    tick_positions = sorted(set([task['output_begin'] for task in all_tasks_in_group if task['output_begin'] is not None]))
+    # Set x ticks at output_begin positions, and for size 16/32 also output_end
+    tick_positions = set([task['output_begin'] for task in all_tasks_in_group if task['output_begin'] is not None])
+    if '16' in filename or '32' in filename:
+        tick_positions.update([task['output_end'] for task in all_tasks_in_group if task['output_end'] is not None])
+    tick_positions = sorted(list(tick_positions))
     plt.xticks(tick_positions, [str(t) for t in tick_positions], rotation=45, ha='right')
 
+    # Set x range to start from effective values
+    if all_times:
+        min_t = min(all_times)
+        max_t = max(all_times)
+        if '8_round1' in filename:
+            plt.xlim(max(0, min_t - 2), 400)
+        else:
+            plt.xlim(max(0, min_t - 2), max_t)
+    else:
+        plt.xlim(xlim)
+
     plt.grid(True, axis='x')
-    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    if os.path.exists(filename):
+        os.remove(filename)
+    if '16' in filename or '32' in filename:
+        plt.savefig(filename, dpi=300)
+    else:
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
 
 def main():
@@ -381,34 +421,75 @@ def main():
 
     print(f"Found PMF sheets: {pmf_sheets}")
 
+    all_pmf_tasks = []
+
     for sheet_name in pmf_sheets:
-        # Read sheet
-        sheet = wb[sheet_name]
-        # Save to CSV
-        csv_file = f"{sheet_name}.csv"
-        try:
-            with open(csv_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                for row in sheet.iter_rows(values_only=True):
-                    writer.writerow(row)
-            print(f"Saved {sheet_name} to {csv_file}")
-        except PermissionError:
-            print(f"Warning: Cannot write to {csv_file}, file may be open. Skipping.")
-            continue
-
-        # Generate PNG
-        png_file = f"{sheet_name}.png"
-        cmd = [sys.executable, 'gantt_scheduler.py', '--csv-file', csv_file, '--output', png_file, '--save-only']
-        print(f"Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"Error generating PNG for {sheet_name}: {result.stderr}")
+        if 'sp' in sheet_name:
+            # Special handling for sp sheets
+            sheet = wb[sheet_name]
+            csv_file = f"{sheet_name}.csv"
+            try:
+                with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    for row in sheet.iter_rows(values_only=True):
+                        writer.writerow(row)
+                print(f"Saved {sheet_name} to {csv_file}")
+            except PermissionError:
+                print(f"Warning: Cannot write to {csv_file}, file may be open. Skipping.")
+                continue
+            # Read tasks
+            tasks, _ = read_tasks_from_csv(csv_file)
+            sp_tasks = [t for t in tasks if t['mode'].startswith('PMF_') and ('M8' in t['mode'] or 'F8' in t['mode'])]
+            for t in sp_tasks:
+                if 'M8' in t['mode'] or 'F8' in t['mode']:
+                    t['mode'] = t['mode'].replace('M8', 'M4').replace('F8', 'F4')
+                # other None
+                t['pipe_begin'] = None
+                t['pipe_end'] = None
+                t['input_begin'] = None
+                t['input_end'] = None
+                # mode to PMF_sp_xxx
+                parts = t['mode'].split('_')
+                if len(parts) > 1:
+                    xxx = '_'.join(parts[1:])
+                    t['mode'] = f"PMF_sp_{xxx}"
+            # Add to all_pmf_tasks
+            uv = 'Y'
+            c_str = get_c(sheet_name)
+            rounds = [get_round(sheet_name)]
+            for t in sp_tasks:
+                for round_str in rounds:
+                    task = {**t, 'sheet': sheet_name, 'round': round_str, 'c': c_str, 'uv': uv, 'original_mode': t['mode']}
+                    all_pmf_tasks.append(task)
         else:
-            print(f"Generated {png_file}")
+            # Read sheet
+            sheet = wb[sheet_name]
+            # Save to CSV
+            csv_file = f"{sheet_name}.csv"
+            try:
+                with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    for row in sheet.iter_rows(values_only=True):
+                        writer.writerow(row)
+                print(f"Saved {sheet_name} to {csv_file}")
+            except PermissionError:
+                print(f"Warning: Cannot write to {csv_file}, file may be open. Skipping.")
+                continue
 
-    # Now collect all PMF tasks
-    csv_files = [f"{sheet}.csv" for sheet in pmf_sheets]
-    all_pmf_tasks = collect_pmf_tasks(csv_files, pmf_sheets)
+            # Generate PNG
+            png_file = f"{sheet_name}.png"
+            cmd = [sys.executable, 'gantt_scheduler.py', '--csv-file', csv_file, '--output', png_file, '--save-only']
+            print(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"Error generating PNG for {sheet_name}: {result.stderr}")
+            else:
+                print(f"Generated {png_file}")
+
+    # Now collect all PMF tasks from non-sp sheets
+    pmf_sheets_normal = [s for s in pmf_sheets if 'sp' not in s]
+    csv_files = [f"{sheet}.csv" for sheet in pmf_sheets_normal]
+    all_pmf_tasks.extend(collect_pmf_tasks(csv_files, pmf_sheets_normal))
     print(f"Collected {len(all_pmf_tasks)} PMF tasks from all sheets.")
 
     # Clean tasks
@@ -418,10 +499,15 @@ def main():
     # Plot summary
     sizes = ['4', '8', '16', '32']
     for size in sizes:
-        for r in ['0', '1']:
-            xlim = (0, 200) if size in ['4', '8'] else (0, 800)
-            generate_summary_plot(cleaned_tasks, [size], r, xlim)
-    print("Generated 8 summary PNGs: PMF_Summary_4_round0.png, PMF_Summary_4_round1.png, PMF_Summary_8_round0.png, PMF_Summary_8_round1.png, PMF_Summary_16_round0.png, PMF_Summary_16_round1.png, PMF_Summary_32_round0.png, PMF_Summary_32_round1.png")
+        if size in ['16', '32']:
+            # Combine round 0 and 1 for size 16 and 32
+            xlim = (0, 800)
+            generate_combined_summary_plot(cleaned_tasks, size, xlim)
+        else:
+            for r in ['0', '1']:
+                xlim = (0, 200) if size in ['4', '8'] else (0, 800)
+                generate_summary_plot(cleaned_tasks, [size], r, xlim)
+    print("Generated summary PNGs: PMF_Summary_4_round0.png, PMF_Summary_4_round1.png, PMF_Summary_8_round0.png, PMF_Summary_8_round1.png, PMF_Summary_16.png, PMF_Summary_32.png")
 
 if __name__ == "__main__":
     main()

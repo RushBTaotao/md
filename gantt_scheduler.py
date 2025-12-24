@@ -84,6 +84,7 @@ def plot_gantt(tasks, config=None, args=None):
         else:
             return 'unknown'
 
+    overlaps = []
     for i in range(len(tasks)):
         for j in range(i+1, len(tasks)):
             task1 = tasks[i]
@@ -93,15 +94,10 @@ def plot_gantt(tasks, config=None, args=None):
                 if (task1['input_begin'] is not None and task1['input_end'] is not None and
                     task2['input_begin'] is not None and task2['input_end'] is not None):
                     if check_overlap(task1['input_begin'], task1['input_end'], task2['input_begin'], task2['input_end']):
-                        print(f"Warning: Input segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['input_begin'], task2['input_begin'])} to {min(task1['input_end'], task2['input_end'])}")
-                # Check output overlap (skip if different sizes)
-                if (task1['output_begin'] is not None and task1['output_end'] is not None and
-                    task2['output_begin'] is not None and task2['output_end'] is not None):
-                    size1 = get_size(task1['mode'])
-                    size2 = get_size(task2['mode'])
-                    if size1 == size2:  # Only report overlap if same size
-                        if check_overlap(task1['output_begin'], task1['output_end'], task2['output_begin'], task2['output_end']):
-                            print(f"Warning: Output segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['output_begin'], task2['output_begin'])} to {min(task1['output_end'], task2['output_end'])}")
+                        msg = f"Warning: Input segment overlap between mode '{task1['mode']}' and '{task2['mode']}' at coordinates {max(task1['input_begin'], task2['input_begin'])} to {min(task1['input_end'], task2['input_end'])}"
+                        print(msg)
+                        overlaps.append(msg)
+
     # Filter PMF tasks
     pmf_tasks = [task for task in tasks if task['mode'].startswith('PMF_')]
 
@@ -263,10 +259,6 @@ def plot_gantt(tasks, config=None, args=None):
     plt.ylabel(config.get('y', 'Modules/Tasks') if config else 'Modules/Tasks')
     plt.title(config.get('tile', 'Module Scheduling Gantt Chart') if config else 'Module Scheduling Gantt Chart')
 
-    # Set x-axis range to original times
-    max_time = max(task['output_end'] for task in tasks if task['output_end'] is not None)
-    plt.xlim(0, max_time)
-
     # Set x-ticks at the leftmost of each task's valid segments
     tick_positions = set()
     for task in tasks:
@@ -275,8 +267,13 @@ def plot_gantt(tasks, config=None, args=None):
             tick_positions.add(min(times))
     tick_positions = sorted(list(tick_positions))
     # Add max_time to tick positions for rightmost marker
+    max_time = max(task['output_end'] for task in tasks if task['output_end'] is not None)
     tick_positions.append(max_time)
     plt.xticks(tick_positions, [str(t) for t in tick_positions], rotation=45, ha='right')
+
+    # Set x-axis range to original times
+    min_time = min(tick_positions) if tick_positions else 0
+    plt.xlim(min_time - 2, max_time)
 
     # Show grid
     plt.grid(True, axis='x')
@@ -289,7 +286,12 @@ def plot_gantt(tasks, config=None, args=None):
 
     # Scaling removed, no legend needed
 
-    plt.subplots_adjust(bottom=0.15, left=0.05, right=0.95)  # Adjusted to reduce left margin and add right margin control
+    # Add overlap warnings to the bottom left corner
+    if overlaps:
+        warning_text = "\n".join(overlaps)
+        plt.figtext(0.01, 0.01, warning_text, fontsize=8, color='red', ha='left', va='bottom', bbox=dict(facecolor='white', alpha=0.8))
+
+    plt.subplots_adjust(bottom=0.2 if overlaps else 0.15, left=0.05, right=0.95)  # Adjusted to reduce left margin and add right margin control
 
     # Add refresh button
     ax_button = plt.axes([0.81, 0.02, 0.1, 0.05])  # [left, bottom, width, height]
