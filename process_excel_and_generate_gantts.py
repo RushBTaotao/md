@@ -405,29 +405,24 @@ def plot_single_summary(grouped, filename, title, xlim=None):
         plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
 
-def main():
-    excel_file = 'mrg.xlsx'
-    if not os.path.exists(excel_file):
-        print(f"Error: Excel file '{excel_file}' not found.")
-        sys.exit(1)
+def process_category(wb, sheets, category_name, output_dir):
+    """
+    处理特定类别的 sheets（如 PMF 或 264PMF）。
+    """
+    if not sheets:
+        return []
 
-    # Load workbook with data_only to get calculated values
-    wb = openpyxl.load_workbook(excel_file, data_only=True)
-    pmf_sheets = [sheet for sheet in wb.sheetnames if sheet.startswith('PMF')]
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Processing category {category_name} in {output_dir}")
 
-    if not pmf_sheets:
-        print("No PMF_ sheets found in the Excel file.")
-        sys.exit(0)
+    category_tasks = []
 
-    print(f"Found PMF sheets: {pmf_sheets}")
-
-    all_pmf_tasks = []
-
-    for sheet_name in pmf_sheets:
+    for sheet_name in sheets:
+        sheet = wb[sheet_name]
+        csv_file = os.path.join(output_dir, f"{sheet_name}.csv")
+        
         if 'sp' in sheet_name:
             # Special handling for sp sheets
-            sheet = wb[sheet_name]
-            csv_file = f"{sheet_name}.csv"
             try:
                 with open(csv_file, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
@@ -453,19 +448,16 @@ def main():
                 if len(parts) > 1:
                     xxx = '_'.join(parts[1:])
                     t['mode'] = f"PMF_sp_{xxx}"
-            # Add to all_pmf_tasks
+            # Add to level tasks
             uv = 'Y'
             c_str = get_c(sheet_name)
             rounds = [get_round(sheet_name)]
             for t in sp_tasks:
                 for round_str in rounds:
                     task = {**t, 'sheet': sheet_name, 'round': round_str, 'c': c_str, 'uv': uv, 'original_mode': t['mode']}
-                    all_pmf_tasks.append(task)
+                    category_tasks.append(task)
         else:
-            # Read sheet
-            sheet = wb[sheet_name]
             # Save to CSV
-            csv_file = f"{sheet_name}.csv"
             try:
                 with open(csv_file, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
@@ -477,7 +469,7 @@ def main():
                 continue
 
             # Generate PNG
-            png_file = f"{sheet_name}.png"
+            png_file = os.path.join(output_dir, f"{sheet_name}.png")
             cmd = [sys.executable, 'gantt_scheduler.py', '--csv-file', csv_file, '--output', png_file, '--save-only']
             print(f"Running: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -487,27 +479,60 @@ def main():
                 print(f"Generated {png_file}")
 
     # Now collect all PMF tasks from non-sp sheets
-    pmf_sheets_normal = [s for s in pmf_sheets if 'sp' not in s]
-    csv_files = [f"{sheet}.csv" for sheet in pmf_sheets_normal]
-    all_pmf_tasks.extend(collect_pmf_tasks(csv_files, pmf_sheets_normal))
-    print(f"Collected {len(all_pmf_tasks)} PMF tasks from all sheets.")
+    sheets_normal = [s for s in sheets if 'sp' not in s]
+    csv_files = [os.path.join(output_dir, f"{sheet}.csv") for sheet in sheets_normal]
+    category_tasks.extend(collect_pmf_tasks(csv_files, sheets_normal))
+    print(f"Collected {len(category_tasks)} tasks for {category_name}.")
 
     # Clean tasks
-    cleaned_tasks = clean_pmf_tasks(all_pmf_tasks)
+    cleaned_tasks = clean_pmf_tasks(category_tasks)
     print(f"After cleaning: {len(cleaned_tasks)} tasks.")
 
     # Plot summary
-    sizes = ['4', '8', '16', '32']
-    for size in sizes:
-        if size in ['16', '32']:
-            # Combine round 0 and 1 for size 16 and 32
-            xlim = (0, 800)
-            generate_combined_summary_plot(cleaned_tasks, size, xlim)
-        else:
-            for r in ['0', '1']:
-                xlim = (0, 200) if size in ['4', '8'] else (0, 800)
-                generate_summary_plot(cleaned_tasks, [size], r, xlim)
-    print("Generated summary PNGs: PMF_Summary_4_round0.png, PMF_Summary_4_round1.png, PMF_Summary_8_round0.png, PMF_Summary_8_round1.png, PMF_Summary_16.png, PMF_Summary_32.png")
+    orig_cwd = os.getcwd()
+    os.chdir(output_dir)
+    try:
+        sizes = ['4', '8', '16', '32']
+        for size in sizes:
+            if size in ['16', '32']:
+                # Combine round 0 and 1 for size 16 and 32
+                xlim = (0, 800)
+                generate_combined_summary_plot(cleaned_tasks, size, xlim)
+            else:
+                for r in ['0', '1']:
+                    xlim = (0, 200) if size in ['4', '8'] else (0, 800)
+                    generate_summary_plot(cleaned_tasks, [size], r, xlim)
+    finally:
+        os.chdir(orig_cwd)
+
+    return cleaned_tasks
+
+def main():
+    excel_file = 'mrg.xlsx'
+    if not os.path.exists(excel_file):
+        print(f"Error: Excel file '{excel_file}' not found.")
+        sys.exit(1)
+
+    # Load workbook
+    wb = openpyxl.load_workbook(excel_file, data_only=True)
+    
+    # Identify sheets
+    pmf_sheets = [s for s in wb.sheetnames if s.startswith('PMF')]
+    pmf264_sheets = [s for s in wb.sheetnames if s.startswith('264PMF')]
+
+    print(f"Found PMF sheets: {pmf_sheets}")
+    print(f"Found 264PMF sheets: {pmf264_sheets}")
+
+    if not pmf_sheets and not pmf264_sheets:
+        print("No matching sheets (PMF or 264PMF) found.")
+        sys.exit(0)
+
+    # Process each category
+    process_category(wb, pmf_sheets, "PMF", "PMF_Output")
+    process_category(wb, pmf264_sheets, "264PMF", "264PMF_Output")
+
+    print("\nAll processing complete.")
+    print("Files are organized in 'PMF_Output' and '264PMF_Output' directories.")
 
 if __name__ == "__main__":
     main()

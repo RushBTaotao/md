@@ -1,0 +1,26 @@
+tile,264PMF c1 round0,,,,,,,H264,0,0,0,0,0,0,0
+x,CYCLE,,,,,,,inter pk in,inter pk work,inter pk out,0,0,tqitq16x16 input,tqitq work,tqitq out
+y,MODE,,,,,,,1,1,1,0,0,0,29,1
+mode,pipe begin,input begin,input end,output begin,output end,,,sel pk in,sel pk work,sel pk out,0,0,tqitq8x8 input,tqitq work,tqitq out
+PMF_16M8_0,11,13,20,26,30,,,1,1,1,0,0,0,18,1
+PMF_16M8_1,18,20,27,33,37,,,Yread latancy,32x32 input cc,32x32 work cc,32x32 output cc,0,tqitq4x4 input,tqitq work,tqitq out
+PMF_16M8_2,25,27,34,40,44,,,0,0,0,0,0,0,11,1
+PMF_16M8_3,32,34,41,47,51,,,Yread latancy,16x16 input cc,16x16 work cc,16x16 output cc,0,chroma,0,0
+PMF_16F8_0,55,57,64,70,74,,,0,0,0,24,0,tqitq16x16 input,tqitq work,tqitq out
+PMF_16F8_1,62,64,71,77,81,,,Yread latancy,8x8 input cc,8x8 work cc,8x8 output cc,0,0,0,0
+PMF_16F8_2,99,101,108,114,118,,,2,7,6,4,0,tqitq8x8 input,tqitq work,tqitq out
+PMF_16F8_3,106,108,115,121,125,,,Yread latancy,4x4 input cc,4x4 work cc,4x4 output cc,0,0,0,0
+PMF_16M4_0,,,,27,31,,,0,0,0,0,0,tqitq4x4 input,tqitq work,tqitq out
+PMF_16M4_1,,,,34,38,,,UVread latancy,16x16 input cc,16x16 work cc,16x16 output cc,0,0,12,1
+PMF_16M4_2,,,,41,45,,,0,0,0,0,0,0,0,0
+PMF_16M4_3,,,,48,52,,,UVread latancy,8x8 input cc,8x8 work cc,8x8 output cc,0,0,0,0
+PMF_16F4_0,,,,71,75,,,2,16,6,8,0,0,0,0
+PMF_16F4_1,,,,78,82,,,UVread latancy,4x4 input cc,4x4 work cc,4x4 output cc,0,0,0,0
+PMF_16F4_2,,,,115,119,,,2,6,8,2,0,0,0,0
+PMF_16F4_3,,,,122,126,,,0,0,0,0,0,0,0,0
+,,,,,,,,0,0,0,0,0,0,0,0
+,,,,,,,,0,0,0,0,0,0,0,0
+,,,,,,,,0,0,0,0,0,0,0,0
+,,,,,,,,0,0,0,0,0,0,0,0
+,,,,,,,,0,0,0,0,0,0,0,0
+,,,,,,,,0,0,0,0,0,0,0,0

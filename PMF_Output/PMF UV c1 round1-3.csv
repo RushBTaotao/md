@@ -1,0 +1,18 @@
+tile,PMF UV c1 round1-3,,,,,,inter pk in,inter pk work,inter pk out,,sel pk in,sel pk work,sel pk out,,UVread latancy,32x32 input cc,32x32 work cc,32x32 output cc,,tqitq4x4 input,tqitq work,tqitq out
+x,CYCLE,,,,,,1,1,1,,1,1,1,,2,88,-80,88,,1,14,1
+y,MODE,,,,,,,,,,,,,,UVread latancy,16x16 input cc,16x16 work cc,16x16 output cc,,,,
+mode,pipe begin,input begin,input end,output begin,output end,,,,,,,,,,2,44,-36,44,,,,
+PMF_M8_1_a,184,186,208,208,216,,,,,,,,,,UVread latancy,8x8 input cc,8x8 work cc,8x8 output cc,,,,
+PMF_M8_1_b,206,208,230,230,238,,,,,,,,,,2,22,0,8,,,,
+PMF_M8_1_c,228,230,252,286,294,,,,,,,,,,,,,,,,,
+PMF_M16_0_c,250,252,296,365,397,,,,,,,,,,,,,,,,,
+PMF_F16_0,311,313,357,321,365,,,,,,,,,,,,,,,,,
+PMF_M8_2_a,400,402,424,424,432,,,,,,,,,,,,,,,,,
+PMF_M8_2_b,422,424,446,446,454,,,,,,,,,,,,,,,,,
+PMF_M8_2_c,444,446,468,468,476,,,,,,,,,,,,,,,,,
+PMF_32M16_0,466,468,512,521,537,,,,,,,,,,,,,,,,,
+PMF_32M16_1,510,512,556,545,561,,,,,,,,,,,,,,,,,
+PMF_M8_3_a,600,602,624,624,632,,,,,,,,,,,,,,,,,
+PMF_M8_3_b,622,624,668,632,676,,,,,,,,,,,,,,,,,
+PMF_M8_3_c,666,668,712,676,720,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,
