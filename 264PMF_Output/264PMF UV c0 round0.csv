@@ -6,7 +6,7 @@ PMF_M4_0,0,2,8,16,18,,,1,1,1,0,0,0,18,1
 PMF_F4_0,6,8,14,22,24,,,Yread latancy,32x32 input cc,32x32 work cc,32x32 output cc,0,tqitq4x4 input,tqitq work,tqitq out
 TQITQ_F4,,24,24,36,37,,,0,0,0,0,0,0,11,1
 INTER_PK4,,37,38,39,40,,,Yread latancy,16x16 input cc,16x16 work cc,16x16 output cc,0,chroma,0,0
-SEL_PK4 ,,40,41,42,43,,,0,0,0,24,0,tqitq16x16 input,tqitq work,tqitq out
+SEL_PK4 ,,40,41,42,43,,,2,22,0,24,0,tqitq16x16 input,tqitq work,tqitq out
 PMF_M4_1,51,53,59,67,69,,,Yread latancy,8x8 input cc,8x8 work cc,8x8 output cc,0,0,0,0
 TQITQ_M4,,69,69,81,82,,,2,7,6,4,0,tqitq8x8 input,tqitq work,tqitq out
 INTER_PK4,,82,83,84,85,,,Yread latancy,4x4 input cc,4x4 work cc,4x4 output cc,0,0,0,0
