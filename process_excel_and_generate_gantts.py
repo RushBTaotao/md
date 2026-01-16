@@ -226,15 +226,20 @@ def generate_summary_plot(tasks, sizes, r, xlim):
         return 1
     return 0
 
-def generate_combined_summary_plot(tasks, size, xlim):
-    filtered = [task for task in tasks if get_size(task['mode']) == size]
+def generate_combined_summary_plot(tasks, sizes, xlim):
+    if isinstance(sizes, str):
+        sizes = [sizes]
+    filtered = [task for task in tasks if get_size(task['mode']) in sizes]
     if filtered:
         grouped = defaultdict(list)
         for task in filtered:
+            sz = get_size(task['mode'])
             uv = task['uv']
-            grouped[(size, uv)].append(task)
+            grouped[(sz, uv)].append(task)
         if grouped:
-            plot_single_summary(grouped, f'PMF_Summary_{size}.png', f'PMF Output Summary {size}', xlim)
+            size_name = "_".join(sizes)
+            size_title = "/".join(sizes)
+            plot_single_summary(grouped, f'PMF_Summary_{size_name}.png', f'PMF Output Summary {size_title}', xlim)
             return 1
     return 0
 
@@ -343,8 +348,12 @@ def process_category(wb, sheets, category_name, output_dir):
     orig_cwd = os.getcwd()
     os.chdir(output_dir)
     try:
+        # 个体 16, 32 汇总
         for size in ['16', '32']:
             stats['summary_created'] += generate_combined_summary_plot(cleaned_tasks, size, (0, 800))
+        # 新增：合并 16 和 32 汇总
+        stats['summary_created'] += generate_combined_summary_plot(cleaned_tasks, ['16', '32'], (0, 800))
+
         for size in ['4', '8']:
             for r in ['0', '1']:
                 stats['summary_created'] += generate_summary_plot(cleaned_tasks, [size], r, (0, 200))
