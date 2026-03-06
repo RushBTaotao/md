@@ -51,21 +51,8 @@ def clean_pmf_tasks(tasks):
     """
     cleaned = []
     for task in tasks:
-        mode = task['mode']
-        size = get_size(mode)
-        uv = task['uv']
-
-        # 1. Remove _a/_b for specific conditions
-        remove = False
-        if uv == 'Y' and size in ['16', '32', '64'] and ('_a' in task.get('original_mode', mode) or '_b' in task.get('original_mode', mode)):
-            remove = True
-        if uv == 'UV' and size in ['8', '16', '32'] and ('_a' in task.get('original_mode', mode) or '_b' in task.get('original_mode', mode)):
-            remove = True
-        if remove:
-            continue
-
         cleaned.append({
-            'mode': mode,
+            'mode': task['mode'],
             'output_begin': task['output_begin'],
             'output_end': task['output_end'],
             'sheet': task['sheet'],
@@ -366,7 +353,7 @@ def process_category(wb, sheets, category_name, output_dir):
 
 def main():
     start_time = time.time()
-    excel_file = 'mrg.xlsx'
+    excel_file = 'mrg_work.xlsx'
     if not os.path.exists(excel_file):
         print(f"Error: Excel file '{excel_file}' not found.")
         sys.exit(1)
